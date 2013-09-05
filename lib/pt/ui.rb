@@ -17,7 +17,14 @@ class PT::UI
     @project = @client.get_project(@local_config[:project_id])
     command = args[0].to_sym rescue :my_work
     @params = args[1..-1]
-    commands.include?(command.to_sym) ? send(command.to_sym) : help
+    
+    if args[0] && ( true if Float(args[0]) rescue false )
+      task = task_by_id_or_pt_id(args[0].to_i)
+      show_task(task)
+    else
+      commands.include?(command.to_sym) ? send(command.to_sym) : help
+    end
+
   end
 
   def my_work
@@ -175,6 +182,17 @@ class PT::UI
       task = select("Please select a story to comment it", table)
       comment = ask("Write your comment")
     end
+
+    # Open editor for comment if none is specified
+    if !comment
+      editor = ENV.fetch('EDITOR') { 'vi' }
+      temp_path = "/tmp/editor-#{ Process.pid }.txt"
+      system "#{ editor } #{ temp_path }"
+      
+      comment = File.read(temp_path)
+    end
+
+
     if @client.comment_task(@project, task, comment)
       congrats("Comment sent, thanks!")
       save_recent_task( task.id )
