@@ -12,7 +12,10 @@ class PT::UI
     require 'pt/debugger' if ARGV.delete('--debug')
     @io = HighLine.new
     @global_config = load_global_config
+
     @client = PT::Client.new(@global_config[:api_number])
+    @simple = PT::SimpleClient.new(@global_config[:api_number])
+
     @local_config = load_local_config
     @project = @client.get_project(@local_config[:project_id])
     command = args[0].to_sym rescue :my_work
@@ -23,6 +26,25 @@ class PT::UI
       show_task(task)
     else
       commands.include?(command.to_sym) ? send(command.to_sym) : help
+    end
+
+  end
+
+  def notifications
+    title("My notifications for #{user_s} in #{project_to_s}")
+    notifications = @simple.notifications(@local_config[:user_name])
+    prev_story = '';
+    notifications.reverse.each do |n| 
+      if ( prev_story != n['story']['name'] )
+        congrats "(#{n['story']['id']}) #{n['story']['name']}"
+      end
+      
+      dt = Time.at( DateTime.parse(n['created_at']).strftime('%s').to_i )
+      created = dt.strftime('%a %I:%M%p')
+
+      message "#{created.yellow} - #{n['message'].yellow}: #{n['context']}"
+
+      prev_story = n['story']['name']
     end
 
   end
@@ -517,6 +539,7 @@ class PT::UI
     puts("pt list      [owner] or all                # list all tasks for another pt user")
     puts("pt updates   [number]                      # shows number recent activity from your current project")
     puts("pt recent                                  # shows stories you've recently shown or commented on with pt")
+    puts("pt notifications                           # shows your pivotal tracker notification stream with story info")
     puts("")
     puts("All commands can be run entirely without arguments for a wizard based UI. Otherwise [required] <optional>.")
     puts("Anything that takes an id will also take the num (index) from the pt command.")
@@ -707,7 +730,8 @@ class PT::UI
     end
 
     task.notes.all.each do |n| 
-      message "#{n.author.yellow}: #{n.text}"
+      display_date = n.noted_at.strftime("%m/%d/%Y %H:%m")
+      message "#{n.author.yellow} #{display_date}: #{n.text}"
       # print attachements for this note
       if attachment_match[ n.text ]
         message "Attachments".bold
